@@ -1,0 +1,42 @@
+:root {
+  --background-color: #f0f0f0;
+  --text-color: #333;
+  --menu-background: #e0e0e0;
+  --button-background: white;
+  --button-hover: #d0d0d0;
+  --button-active: #ff9999;
+  --button-text: #333;
+  --button-active-text: white;
+  --border-color: #ccc;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode {
+  --background-color: #1a1a1a;
+  --text-color: #fff;
+  --menu-background: #2d2d2d;
+  --button-background: #3d3d3d;
+  --button-hover: #4a4a4a;
+  --button-active: #ff6666;
+  --button-text: #fff;
+  --button-active-text: white;
+  --border-color: #4a4a4a;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+} 

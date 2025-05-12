@@ -25,6 +25,7 @@ const ICComponent: React.FC<ICProps> = ({
   const halfPins = pins / 2;
   // Calculate actual body width based on pin spacing
   const actualWidth = (halfPins - 1) * pinSpacing + PIN_SIZE;
+  const actualHeight = IC_HEIGHT + width;
 
   const [dragging, setDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -66,17 +67,10 @@ const ICComponent: React.FC<ICProps> = ({
 
     // Calculate relative position on the board
     const relativeX = x - targetBoard.x - GRID_SIZE/2;
+    const relativeY = y - targetBoard.y;
 
     // Snap to grid
-    let snappedX = Math.round((relativeX - 1.5 * GRID_SIZE) / GRID_SIZE) * GRID_SIZE + 1.5 * GRID_SIZE;
-
-    // Calculate the center divide position
-    const centerDivideY = targetBoard.y + GRID_SIZE + CENTER_DIVIDE_HEIGHT + (ROWS/2 + 2) * GRID_SIZE;
-    
-    // Snap to the center divide
-    let row = ROWS/2 - 1; // This will place the IC centered on the divide
-
-    const snappedY = centerDivideY - IC_HEIGHT/2;
+    const snappedX = Math.round((relativeX - 1.5 * GRID_SIZE) / GRID_SIZE) * GRID_SIZE + 1.5 * GRID_SIZE;
 
     // Calculate column
     const col = Math.round((snappedX - 1.5 * GRID_SIZE) / GRID_SIZE);
@@ -84,13 +78,31 @@ const ICComponent: React.FC<ICProps> = ({
     // Ensure IC stays within board bounds
     const maxCol = COLS-Math.floor(halfPins/2)-1;
     const clampedCol = Math.max(Math.floor(halfPins/2 - 0.5), Math.min(col, maxCol));
+    let final_x = targetBoard.x + 1.5 * GRID_SIZE + clampedCol * GRID_SIZE + (halfPins % 2 == 0 ? GRID_SIZE/2 : 0);
+
+
+    // Calculate the center divide position
+    const centerDivideY = GRID_SIZE + CENTER_DIVIDE_HEIGHT + (ROWS/2 + 1) * GRID_SIZE;
+    
+    
+    // Calculate the base row (center divide)
+    const baseRow = ROWS/2 - 1;
+    
+    // Calculate the vertical offset from the center divide
+    const verticalOffset = Math.round((relativeY - centerDivideY)/GRID_SIZE);
+    
+    // Clamp vertical offset between -width and width
+    let vertical_space = width/GRID_SIZE;
+    const clampedVerticalOffset = Math.min(0, Math.max(-vertical_space, verticalOffset));
+
+    const snappedY = targetBoard.y + centerDivideY + GRID_SIZE*clampedVerticalOffset;
 
     return {
-      x: targetBoard.x + 1.5 * GRID_SIZE + clampedCol * GRID_SIZE + (halfPins % 2 == 0 ? GRID_SIZE/2 : 0),
+      x: final_x,
       y: snappedY,
       boardId: targetBoard.id,
       startCol: clampedCol,
-      startRow: row
+      startRow: baseRow + verticalOffset
     };
   };
 
@@ -169,7 +181,7 @@ const ICComponent: React.FC<ICProps> = ({
       {/* IC body */}
       <rect 
         width={actualWidth} 
-        height={IC_HEIGHT} 
+        height={actualHeight} 
         fill={isPreview ? "rgba(0, 0, 0, 0.5)" : "black"} 
         rx={4} 
         x={-actualWidth/2}
@@ -179,7 +191,7 @@ const ICComponent: React.FC<ICProps> = ({
 
       {/* Orientation indicator (notch) */}
       <path
-        d={`M${-actualWidth/2},${IC_HEIGHT/2 - 5} L${-actualWidth/2},${IC_HEIGHT/2 + 5} L${-actualWidth/2 + 5},${IC_HEIGHT/2} Z`}
+        d={`M${-actualWidth/2},${actualHeight/2 - 0.2*GRID_SIZE} L${-actualWidth/2},${actualHeight/2 + 0.2*GRID_SIZE} L${-actualWidth/2 + 0.3*GRID_SIZE},${actualHeight/2} Z`}
         fill={isPreview ? "#999" : "#666"}
       />
 
@@ -203,7 +215,7 @@ const ICComponent: React.FC<ICProps> = ({
         <g key={`B${id}-${i}`}>
           <rect 
             x={x - PIN_SIZE/2} 
-            y={IC_HEIGHT} 
+            y={actualHeight} 
             width={PIN_SIZE} 
             height={PIN_SIZE} 
             fill={isPreview ? "#999" : "#666"}

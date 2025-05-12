@@ -19,12 +19,14 @@ export type WirePathProps = {
   customPath?: Point[];
 };
 
-export type Wire = {
+export interface Wire {
+  id: number;
   start: Hole;
   end: Hole;
-  color?: string;
-  path?: Point[];
-};
+  color: string;
+  path: Point[];
+  shift_completed: boolean;
+}
 
 export type Point = {
   x: number;

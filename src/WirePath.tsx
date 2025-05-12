@@ -1,5 +1,5 @@
-import React from 'react';
-import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, POWER_RAIL_HEIGHT, ROWS, COLS, HOLE_SIZE, WIRE_WEIGHT } from './config';
+import React, { useEffect, useState } from 'react';
+import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, POWER_RAIL_HEIGHT, ROWS, COLS, HOLE_SIZE, WIRE_WEIGHT, WIRE_OFFSET } from './config';
 import type { WirePathProps, Point, Hole, IC } from './types';
 import { findPath } from './pathfinding';
 
@@ -10,7 +10,22 @@ interface ExtendedWirePathProps extends WirePathProps {
   isSelected?: boolean;
   onClick?: () => void;
   ics?: IC[];
+  wireId?: number;
+  is_shifted?: boolean;
 }
+
+// Track wire positions globally
+const wirePositions = new Map<number, { path: Point[], offset: number }>();
+
+// Clean up deleted wires
+export const cleanupWirePosition = (wireId: number) => {
+  wirePositions.delete(wireId);
+};
+
+// Reset all wire positions
+export const resetAllWirePositions = () => {
+  wirePositions.clear();
+};
 
 export default function WirePath({ 
   start, 
@@ -21,25 +36,128 @@ export default function WirePath({
   customPath,
   isSelected = false,
   onClick,
-  ics = []
+  ics = [],
+  wireId,
+  is_shifted = false
 }: ExtendedWirePathProps) {
+  const [offsetPoints, setOffsetPoints] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    // Reset offset points when boards change
+    setOffsetPoints(new Map());
+  }, [boards]);
+
+  useEffect(() => {
+    if (wireId !== undefined && !isPreview) {
+      const path = customPath || findPath(start, end, boards, ics);
+      
+      // Find overlapping points and their counts, separated by orientation
+      const horizontalCounts = new Map<string, number>();
+      const verticalCounts = new Map<string, number>();
+      
+      for (const [id, data] of wirePositions.entries()) {
+        if (id === wireId) continue;
+        
+        data.path.forEach((point, i) => {
+          const pointKey = `${point.x},${point.y},${point.boardId}`;
+          
+          // Consider endpoints and corners as both horizontal and vertical
+          if (i === 0 || i === data.path.length - 1) {
+            horizontalCounts.set(pointKey, (horizontalCounts.get(pointKey) || 0) + 1);
+            verticalCounts.set(pointKey, (verticalCounts.get(pointKey) || 0) + 1);
+          } else {
+            const prev = data.path[i - 1];
+            const next = data.path[i + 1];
+            const isCorner = (point.y === prev.y && point.x === next.x) || 
+                           (point.x === prev.x && point.y === next.y);
+            
+            if (isCorner) {
+              horizontalCounts.set(pointKey, (horizontalCounts.get(pointKey) || 0) + 1);
+              verticalCounts.set(pointKey, (verticalCounts.get(pointKey) || 0) + 1);
+            } else {
+              const isHorizontal = point.y === prev.y;
+              if (isHorizontal) {
+                horizontalCounts.set(pointKey, (horizontalCounts.get(pointKey) || 0) + 1);
+              } else {
+                verticalCounts.set(pointKey, (verticalCounts.get(pointKey) || 0) + 1);
+              }
+            }
+          }
+        });
+      }
+      
+      // Store the counts for each point in this wire's path
+      const newOffsetPoints = new Map<string, number>();
+      path.forEach((point, i) => {
+        const pointKey = `${point.x},${point.y},${point.boardId}`;
+        
+        // Consider endpoints and corners as both horizontal and vertical
+        if (i === 0 || i === path.length - 1) {
+          const hCount = horizontalCounts.get(pointKey) || 0;
+          const vCount = verticalCounts.get(pointKey) || 0;
+          const count = Math.max(hCount, vCount);
+          if (count > 0) {
+            newOffsetPoints.set(pointKey, count);
+          }
+        } else {
+          const prev = path[i - 1];
+          const next = path[i + 1];
+          const isCorner = (point.y === prev.y && point.x === next.x) || 
+                         (point.x === prev.x && point.y === next.y);
+          
+          if (isCorner) {
+            const hCount = horizontalCounts.get(pointKey) || 0;
+            const vCount = verticalCounts.get(pointKey) || 0;
+            const count = Math.max(hCount, vCount);
+            if (count > 0) {
+              newOffsetPoints.set(pointKey, count);
+            }
+          } else {
+            const isHorizontal = point.y === prev.y;
+            const count = isHorizontal 
+              ? horizontalCounts.get(pointKey) || 0
+              : verticalCounts.get(pointKey) || 0;
+            if (count > 0) {
+              newOffsetPoints.set(pointKey, count);
+            }
+          }
+        }
+      });
+      
+      setOffsetPoints(newOffsetPoints);
+      wirePositions.set(wireId, { path, offset: Math.max(...Array.from(newOffsetPoints.values()), 0) });
+    }
+  }, [wireId, start, end, boards, ics, customPath, isPreview]);
+
   // Helper function to convert grid coordinates to pixel coordinates
   const gridToPixel = (point: Point) => {
     const board = boards.find(b => b.id === point.boardId);
     if (!board) return null;
 
-    const x = board.x + 1.5 * GRID_SIZE + point.x * GRID_SIZE;
+    let x = board.x + 1.5 * GRID_SIZE + point.x * GRID_SIZE;
     let y = board.y;
 
     if (point.y < 0) {
-      // Top power rail section
       y += GRID_SIZE + (point.y + 3) * GRID_SIZE;
     } else if (point.y < ROWS/2) {
-      // Top section
       y += GRID_SIZE + CENTER_DIVIDE_HEIGHT + (point.y + 2) * GRID_SIZE;
     } else {
-      // Bottom section (account for center divide)
       y += GRID_SIZE + CENTER_DIVIDE_HEIGHT + (ROWS/2 + 2) * GRID_SIZE + CENTER_DIVIDE_HEIGHT + (point.y - ROWS/2) * GRID_SIZE;
+    }
+
+    // Apply offset only at overlapping points
+    const pointKey = `${point.x},${point.y},${point.boardId}`;
+    if (offsetPoints.has(pointKey)) {
+      const path = customPath || findPath(start, end, boards, ics);
+      const pointIndex = path.findIndex(p => p.x === point.x && p.y === point.y && p.boardId === point.boardId);
+      const isHorizontal = pointIndex > 0 && path[pointIndex].y === path[pointIndex - 1].y;
+      const offset = offsetPoints.get(pointKey) || 0;
+      
+      if (isHorizontal) {
+        y +=  (is_shifted ? offset : -offset) * WIRE_OFFSET;
+      } else {
+        x += (is_shifted ? -offset : offset) * WIRE_OFFSET;
+      }
     }
 
     return { x, y };
@@ -56,21 +174,27 @@ export default function WirePath({
     ? `M ${pathPoints[0].x} ${pathPoints[0].y} ${pathPoints.map((point, i) => {
         if (i === 0) return '';
         const prev = pathPoints[i - 1];
-        // Add rounded corner if direction changes
-        if (i < pathPoints.length - 1) {
-          const next = pathPoints[i + 1];
-          const dx1 = point.x - prev.x;
-          const dy1 = point.y - prev.y;
-          const dx2 = next.x - point.x;
-          const dy2 = next.y - point.y;
-          // If direction changes, add rounded corner
-          if (dx1 !== dx2 || dy1 !== dy2) {
-            const radius = WIRE_WEIGHT / 2;
-            return `L ${point.x - dx1 * radius/Math.sqrt(dx1*dx1 + dy1*dy1)} ${point.y - dy1 * radius/Math.sqrt(dx1*dx1 + dy1*dy1)} 
-                    Q ${point.x} ${point.y} 
-                    ${point.x + dx2 * radius/Math.sqrt(dx2*dx2 + dy2*dy2)} ${point.y + dy2 * radius/Math.sqrt(dx2*dx2 + dy2*dy2)}`;
+        const next = pathPoints[i + 1];
+        
+        // If this is a corner point
+        if (next && ((point.x === prev.x && point.y === next.y) || (point.y === prev.y && point.x === next.x))) {
+          // Calculate the offset for the corner
+          const pointKey = `${path[i].x},${path[i].y},${path[i].boardId}`;
+          const offset = offsetPoints.get(pointKey) || 0;
+          
+          // For corner points, extend to the right to account for vertical offset
+          if (offset > 0) {
+            if (point.x === prev.x) {
+              // Vertical to horizontal corner
+              return `L ${point.x} ${point.y - (is_shifted ? -offset : offset) * WIRE_OFFSET} L ${point.x + (is_shifted ? -offset : offset) * WIRE_OFFSET} ${point.y}`;
+            } else {
+              // Horizontal to vertical corner
+              return `L ${point.x - (is_shifted ? -offset : offset) * WIRE_OFFSET} ${point.y} L ${point.x + (is_shifted ? -offset : offset) * WIRE_OFFSET} ${point.y}`;
+            }
           }
         }
+        
+        // For non-corner points, just draw a straight line
         return `L ${point.x} ${point.y}`;
       }).join(' ')}`
     : '';
@@ -81,6 +205,16 @@ export default function WirePath({
 
   return (
     <g onClick={onClick} style={{ cursor: 'pointer' }}>
+      <path
+        d={pathString}
+        stroke={color === '#000000' ? 'white' : 'black'}
+        strokeWidth={WIRE_WEIGHT + 2}
+        fill="none"
+        strokeDasharray={isPreview ? "5,5" : undefined}
+        opacity={isPreview ? 0.5 : 1}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       <path
         d={pathString}
         stroke={color}

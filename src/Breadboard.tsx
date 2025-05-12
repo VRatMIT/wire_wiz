@@ -74,7 +74,7 @@ const Breadboard: React.FC<Props> = ({
             height={HOLE_SIZE}
             fill="#666"
             stroke="#999"
-            strokeWidth={1}
+            strokeWidth={2}
           />
           <rect
             x={holeX - HOLE_SIZE/3}
@@ -102,7 +102,7 @@ const Breadboard: React.FC<Props> = ({
         height={totalHeight}
         fill="#f0f0f0"
         stroke="#999"
-        strokeWidth={2}
+        strokeWidth={0.1*GRID_SIZE}
       />
 
       {/* Power Rail Lines */}
@@ -110,17 +110,17 @@ const Breadboard: React.FC<Props> = ({
       {/* Top Power Rail + */}
       <line
         x1={1.5 * GRID_SIZE}
-        y1={GRID_SIZE - 10}
+        y1={GRID_SIZE - 0.5*GRID_SIZE}
         x2={totalWidth - 1.5 * GRID_SIZE}
-        y2={GRID_SIZE - 10}
+        y2={GRID_SIZE - 0.5*GRID_SIZE}
         stroke="red"
         strokeWidth={2}
       />
       <line
         x1={1.5 * GRID_SIZE}
-        y1={GRID_SIZE + GRID_SIZE + 10}
+        y1={GRID_SIZE + GRID_SIZE + 0.5*GRID_SIZE}
         x2={totalWidth - 1.5 * GRID_SIZE}
-        y2={GRID_SIZE + GRID_SIZE + 10}
+        y2={GRID_SIZE + GRID_SIZE + 0.5*GRID_SIZE}
         stroke="blue"
         strokeWidth={2}
       />
@@ -129,18 +129,18 @@ const Breadboard: React.FC<Props> = ({
       {/* Bottom Power Rail + */}
       <line
         x1={1.5 * GRID_SIZE}
-        y1={totalHeight - 2 * GRID_SIZE - 10}
+        y1={totalHeight - 2 * GRID_SIZE - 0.5*GRID_SIZE}
         x2={totalWidth - 1.5 * GRID_SIZE}
-        y2={totalHeight - 2 * GRID_SIZE - 10}
+        y2={totalHeight - 2 * GRID_SIZE - 0.5*GRID_SIZE}
         stroke="red"
         strokeWidth={2}
       />
       {/* Bottom Power Rail - */}
       <line
         x1={1.5 * GRID_SIZE}
-        y1={totalHeight - GRID_SIZE + 10}
+        y1={totalHeight - GRID_SIZE + 0.5*GRID_SIZE}
         x2={totalWidth - 1.5 * GRID_SIZE}
-        y2={totalHeight - GRID_SIZE + 10}
+        y2={totalHeight - GRID_SIZE + 0.5*GRID_SIZE}
         stroke="blue"
         strokeWidth={2}
       />
@@ -163,6 +163,7 @@ const Breadboard: React.FC<Props> = ({
           fontSize={10}
           fill="#666"
           textAnchor="middle"
+          style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}
         >
           {col + 1}
         </text>

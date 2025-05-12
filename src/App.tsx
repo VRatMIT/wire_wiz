@@ -1,12 +1,15 @@
 // App.tsx with IC drag updates and dynamic wire re-routing
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Breadboard from './Breadboard';
-import type { Hole, Board, Point, IC, WirePathProps } from './types';
+import type { Hole, Board, Point, IC, WirePathProps, Wire } from './types';
 import ICComponent from './ICComponent';
-import WirePath from './WirePath';
-import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, POWER_RAIL_HEIGHT, ROWS, COLS, IC_HEIGHT, MIN_IC_WIDTH, IC_SIZES, WIRE_COLORS, PIN_SIZE } from './config';
+import WirePath, { cleanupWirePosition, resetAllWirePositions } from './WirePath';
+import ICSelectionMenu from './ICSelectionMenu';
+import KeyboardShortcutsMenu from './KeyboardShortcutsMenu';
+import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, POWER_RAIL_HEIGHT, ROWS, COLS, IC_HEIGHT, MIN_IC_WIDTH, IC_SIZES, WIRE_COLORS, PIN_SIZE, TOP_MENU } from './config';
 import { findPath } from './pathfinding';
+import ThemeToggle from './ThemeToggle';
 
 interface ExtendedWirePathProps extends WirePathProps {
   isSelected?: boolean;
@@ -16,7 +19,7 @@ interface ExtendedWirePathProps extends WirePathProps {
 function App() {
   const [boards, setBoards] = useState<Board[]>([{ id: 0, x: 0, y: 0 }]);
   const [ics, setICs] = useState<Array<IC>>([]);
-  const [wires, setWires] = useState<Array<{ id: number; start: Hole; end: Hole; color?: string; path?: Point[] }>>([]);
+  const [wires, setWires] = useState<Array<Wire>>([]);
   const [selectedHoles, setSelectedHoles] = useState<Hole[]>([]);
   const [startHole, setStartHole] = useState<Hole | null>(null);
   const [hoverHole, setHoverHole] = useState<Hole | null>(null);
@@ -41,37 +44,36 @@ function App() {
     startRow: number;
   } | null>(null);
   const [selectedICs, setSelectedICs] = useState<number[]>([]);
+  const [showICMenu, setShowICMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [currentMousePosition, setCurrentMousePosition] = useState({ x: 0, y: 0 });
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
 
   // Calculate board dimensions
   const boardWidth = (COLS + 2) * GRID_SIZE;
   const boardHeight = (ROWS + 6) * GRID_SIZE + 2 * GRID_SIZE;
 
-  // Add keyboard event listener for IC and board deletion
+  // Add mouse move handler
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setCurrentMousePosition({ x: e.clientX, y: e.clientY });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  // Update keyboard event handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Backspace') {
-        // Delete all selected ICs and wires at once
-        if (selectedICs.length > 0 || selectedWires.length > 0) {
-          // Remove selected ICs
-          setICs(ics.filter(ic => !selectedICs.includes(ic.id)));
-          setSelectedICs([]);
-          setSelectedIC(null);
-          
-          // Remove selected wires
-          setWires(wires.filter(wire => !selectedWires.includes(wire.id)));
-          setSelectedWires([]);
-        }
-      } else if (e.key === ' ' || e.key === 'Space') {
-        // Prevent default scrolling behavior
-        e.preventDefault();
-        // Deselect all wires and ICs when space is pressed
-        setSelectedWires([]);
-        setSelectedICs([]);
-        setSelectedIC(null);
-        setSelectedBoard(null);
-      } else if (e.key === 'Escape' && isPlacingBoard) {
-        setIsPlacingBoard(false);
-        setPreviewBoard(null);
+      if (e.key === 'i' || e.key === 'I') {
+        // Store current mouse position and show menu
+        setMenuPosition(currentMousePosition);
+        setShowICMenu(true);
+      } else if (e.key === 'b' || e.key === 'B') {
+        // Start board placement
+        startBoardPlacement();
       } else if (e.key === 'w' || e.key === 'W') {
         if (isWireMode) {
           // Exit wire mode and place wire
@@ -105,12 +107,13 @@ function App() {
             }
             
             // Create the wire with the complete path
-            const newWire = { 
+            const newWire: Wire = { 
               id: Math.max(...wires.map(wire => wire.id), -1) + 1,
-              start: startHole, 
+              start: startHole,
               end: hoverHole,
               color: WIRE_COLORS[currentWireColor].value,
-              path: finalPath
+              path: finalPath,
+              shift_completed: isShiftPressed
             };
             
             setWires([...wires, newWire]);
@@ -128,6 +131,11 @@ function App() {
           // Clear any existing pinned path when starting a new wire
           setPinnedPath([]);
           setPinnedEnd(null);
+          // Deselect everything when entering wire mode
+          setSelectedWires([]);
+          setSelectedIC(null);
+          setSelectedICs([]);
+          setSelectedBoard(null);
         }
       } else if (e.key === 'e' || e.key === 'E') {
         if (isWireMode && startHole && hoverHole) {
@@ -175,11 +183,16 @@ function App() {
                 : wire
             ));
           }
+        } else if (isWireMode) {
+          // If in wire mode, just cycle through colors for the preview
+          const newColorIndex = (currentWireColor + 1) % WIRE_COLORS.length;
+          setCurrentWireColor(newColorIndex);
         }
         // Deselect ICs when 'c' is pressed
         setSelectedICs([]);
         setSelectedIC(null);
       } else if (e.key === 'Escape') {
+        setShowICMenu(false);
         if (isWireMode) {
           setStartHole(null);
           setIsWireMode(false);
@@ -191,14 +204,35 @@ function App() {
           setIsPlacingBoard(false);
           setPreviewBoard(null);
         }
-        // Deselect all wires when Escape is pressed
         setSelectedWires([]);
+      } else if (e.key === 'Backspace') {
+        // Delete all selected ICs and wires at once
+        if (selectedICs.length > 0 || selectedWires.length > 0) {
+          // Reset all wire positions when deleting
+          resetAllWirePositions();
+          setICs(ics.filter(ic => !selectedICs.includes(ic.id)));
+          setWires(wires.filter(wire => !selectedWires.includes(wire.id)));
+          setSelectedICs([]);
+          setSelectedIC(null);
+        }
+      } else if (e.key === 'Shift') {
+        setIsShiftPressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(false);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIC, selectedICs, ics, isPlacingBoard, selectedBoard, boards, wires, isWireMode, startHole, hoverHole, currentWireColor, pinnedPath, pinnedEnd, selectedWires]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [selectedIC, selectedICs, ics, isPlacingBoard, selectedBoard, boards, wires, isWireMode, startHole, hoverHole, currentWireColor, pinnedPath, pinnedEnd, selectedWires, showICMenu, currentMousePosition, isShiftPressed]);
 
   const startBoardPlacement = () => {
     setIsPlacingBoard(true);
@@ -498,6 +532,8 @@ function App() {
     if (isPositionValid(previewBoard.x, previewBoard.y) && 
         isAdjacentToExisting(previewBoard.x, previewBoard.y)) {
       const newId = Math.max(...boards.map(b => b.id)) + 1;
+      // Reset all wire positions when adding a new board
+      resetAllWirePositions();
       setBoards([...boards, { id: newId, x: previewBoard.x, y: previewBoard.y }]);
       setIsPlacingBoard(false);
       setPreviewBoard(null);
@@ -714,6 +750,12 @@ function App() {
     setSelectedBoard(null);
   };
 
+  const handleICSelect = (pins: number) => {
+    const width = (pins in IC_SIZES ? IC_SIZES[pins as keyof typeof IC_SIZES] : MIN_IC_WIDTH);
+    setPlacingIC({ pins, width });
+    setShowICMenu(false);
+  };
+
   return (
     <div 
       style={{ 
@@ -721,51 +763,77 @@ function App() {
         height: '100vh', 
         display: 'flex', 
         flexDirection: 'column',
-        backgroundColor: '#f0f0f0'
+        backgroundColor: 'var(--background-color)',
+        color: 'var(--text-color)',
       }}
       onClick={handleBackgroundClick}
     >
-      <div style={{ padding: '10px', backgroundColor: '#e0e0e0' }}>
-        <button onClick={() => addIC(8)}>Add 8-pin IC</button>
-        <button onClick={() => addIC(14)}>Add 14-pin IC</button>
-        <button onClick={() => addIC(16)}>Add 16-pin IC</button>
-        <button onClick={() => addIC(20)}>Add 20-pin IC</button>
-        <button onClick={() => addIC(28)}>Add 28-pin IC</button>
-        <button onClick={() => addIC(40)}>Add 40-pin IC</button>
-        <button 
-          onClick={startBoardPlacement}
-          style={{ 
-            backgroundColor: isPlacingBoard ? '#ff9999' : undefined,
-            color: isPlacingBoard ? 'white' : undefined
-          }}
-        >
-          {isPlacingBoard ? 'Cancel Board Placement (Esc)' : 'Add Board'}
-        </button>
-        {isWireMode && (
-          <span style={{ marginLeft: '10px', color: '#666' }}>
-            Wire Mode Active - Color: {WIRE_COLORS[currentWireColor].name} 
-            (Press 'c' to change, 'e' to pin path segment, Esc to cancel)
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        padding: TOP_MENU.PADDING,
+        backgroundColor: 'var(--menu-background)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        zIndex: 1000,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: TOP_MENU.PADDING }}>
+          <button
+            onClick={startBoardPlacement}
+            style={{
+              padding: TOP_MENU.BUTTON.PADDING,
+              margin: TOP_MENU.BUTTON.MARGIN,
+              borderRadius: TOP_MENU.BUTTON.BORDER_RADIUS,
+              fontSize: TOP_MENU.BUTTON.FONT_SIZE,
+              backgroundColor: 'var(--button-background)',
+              color: 'var(--text-color)',
+              border: 'none',
+              cursor: 'pointer',
+              minWidth: TOP_MENU.BUTTON.MIN_WIDTH,
+              transition: 'background-color 0.2s',
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--button-hover)'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'var(--button-background)'}
+          >
+            {isPlacingBoard ? 'Cancel Board Placement (Esc)' : 'Add Board'}
+          </button>
+          <span style={{ 
+            margin: TOP_MENU.STATUS_TEXT.MARGIN,
+            color: 'var(--text-color)',
+            fontSize: TOP_MENU.STATUS_TEXT.FONT_SIZE,
+          }}>
+            Boards: {boards.length}
           </span>
-        )}
-        {selectedBoard !== null && selectedBoard !== 0 && (
-          <span style={{ marginLeft: '10px', color: '#666' }}>
-            Selected board {selectedBoard} (Press Shift+Backspace to delete)
+          <span style={{ 
+            margin: TOP_MENU.STATUS_TEXT.MARGIN,
+            color: 'var(--text-color)',
+            fontSize: TOP_MENU.STATUS_TEXT.FONT_SIZE,
+          }}>
+            Wires: {wires.length}
           </span>
-        )}
-        {selectedWires.length > 0 && (
-          <span style={{ marginLeft: '10px', color: '#666' }}>
-            {selectedWires.length} wire{selectedWires.length > 1 ? 's' : ''} selected (Press Backspace to delete, 'c' to change color)
-          </span>
-        )}
+        </div>
+        <ThemeToggle gridSize={GRID_SIZE} />
       </div>
       <div 
         style={{ 
           flex: 1, 
           position: 'relative', 
           overflow: 'auto',
-          cursor: placingIC ? 'crosshair' : (isWireMode ? 'crosshair' : 'default')
+          cursor: placingIC ? 'crosshair' : (isWireMode ? 'crosshair' : 'default'),
+          paddingTop: TOP_MENU.PADDING * 2 + TOP_MENU.FONT_SIZE + TOP_MENU.BUTTON.FONT_SIZE + (parseInt(TOP_MENU.BUTTON.PADDING.split(' ')[0]) * 2)
         }}
       >
+        {showICMenu && (
+          <ICSelectionMenu
+            onSelect={handleICSelect}
+            onClose={() => setShowICMenu(false)}
+            mouseX={menuPosition.x}
+            mouseY={menuPosition.y}
+          />
+        )}
         <svg 
           style={{ width: '100%', height: '100%' }}
           onMouseDown={handleMouseDown}
@@ -838,6 +906,8 @@ function App() {
               isSelected={selectedWires.includes(wire.id)}
               onClick={() => handleWireClick(wire.id)}
               ics={ics}
+              wireId={wire.id}
+              is_shifted={wire.shift_completed}
             />
           ))}
           {isWireMode && startHole && hoverHole && (
@@ -851,6 +921,7 @@ function App() {
                   isPreview={true}
                   customPath={pinnedPath}
                   ics={ics}
+                  is_shifted={isShiftPressed}
                 />
               )}
               <WirePath
@@ -860,6 +931,7 @@ function App() {
                 color={WIRE_COLORS[currentWireColor].value}
                 isPreview={true}
                 ics={ics}
+                is_shifted={isShiftPressed}
               />
             </>
           )}
@@ -911,6 +983,9 @@ function App() {
           )}
         </svg>
       </div>
+      {showKeyboardShortcuts && (
+        <KeyboardShortcutsMenu onClose={() => setShowKeyboardShortcuts(false)} />
+      )}
     </div>
   );
 }
