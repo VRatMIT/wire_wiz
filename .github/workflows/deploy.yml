@@ -1,18 +1,19 @@
-name: Deploy to GitHub Pages
+name: Deploy Vite site to GitHub Pages
 
 on:
   push:
     branches:
-      - main  # or master, depending on your default branch name
+      - main  # adjust if your default branch is different
 
 permissions:
   contents: write
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Setup Node.js
@@ -21,17 +22,14 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: npm install
 
-      - name: Build
+      - name: Build site
         run: npm run build
-        env:
-          CI: false # This prevents treating warnings as errors
 
-      - name: Deploy
+      - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: dist
-          branch: gh-pages
-          clean: true # Automatically remove old files 
+          branch: gh-pages          # The branch the site will be deployed to
+          folder: dist              # The output folder from `vite build`
