@@ -1,13 +1,13 @@
 // App.tsx with IC drag updates and dynamic wire re-routing
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Breadboard from './Breadboard';
 import type { Hole, Board, Point, IC, WirePathProps, Wire } from './types';
 import ICComponent from './ICComponent';
-import WirePath, { cleanupWirePosition, resetAllWirePositions } from './WirePath';
+import WirePath, { resetAllWirePositions } from './WirePath';
 import ICSelectionMenu from './ICSelectionMenu';
 import KeyboardShortcutsMenu from './KeyboardShortcutsMenu';
-import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, POWER_RAIL_HEIGHT, ROWS, COLS, IC_HEIGHT, MIN_IC_WIDTH, IC_SIZES, WIRE_COLORS, PIN_SIZE, TOP_MENU } from './config';
+import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, ROWS, COLS, IC_HEIGHT, MIN_IC_WIDTH, IC_SIZES, WIRE_COLORS, PIN_SIZE, TOP_MENU } from './config';
 import { findPath } from './pathfinding';
 import ThemeToggle from './ThemeToggle';
 

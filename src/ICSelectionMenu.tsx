@@ -3,12 +3,11 @@ import { TOP_MENU, MENU_SCALE } from './config';
 
 interface ICSelectionMenuProps {
   onSelect: (pins: number, width: number) => void;
-  onClose: () => void;
   mouseX: number;
   mouseY: number;
 }
 
-const ICSelectionMenu: React.FC<ICSelectionMenuProps> = ({ onSelect, onClose, mouseX, mouseY }) => {
+const ICSelectionMenu: React.FC<ICSelectionMenuProps> = ({ onSelect, mouseX, mouseY }) => {
   const [hoveredSize, setHoveredSize] = useState<number | null>(null);
   const [hoveredWidth, setHoveredWidth] = useState<number | null>(null);
 

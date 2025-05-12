@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { TOP_MENU } from './config';
 
-interface ThemeToggleProps {
-  gridSize: number;
-}
-
-const ThemeToggle: React.FC<ThemeToggleProps> = ({ gridSize }) => {
+const ThemeToggle: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check if user has a theme preference in localStorage
     const savedTheme = localStorage.getItem('theme');

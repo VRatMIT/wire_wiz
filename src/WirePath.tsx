@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, POWER_RAIL_HEIGHT, ROWS, COLS, HOLE_SIZE, WIRE_WEIGHT, WIRE_OFFSET } from './config';
-import type { WirePathProps, Point, Hole, IC } from './types';
+import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, ROWS, WIRE_WEIGHT, WIRE_OFFSET } from './config';
+import type { WirePathProps, Point, IC } from './types';
 import { findPath } from './pathfinding';
 
 interface ExtendedWirePathProps extends WirePathProps {
@@ -16,11 +16,6 @@ interface ExtendedWirePathProps extends WirePathProps {
 
 // Track wire positions globally
 const wirePositions = new Map<number, { path: Point[], offset: number }>();
-
-// Clean up deleted wires
-export const cleanupWirePosition = (wireId: number) => {
-  wirePositions.delete(wireId);
-};
 
 // Reset all wire positions
 export const resetAllWirePositions = () => {

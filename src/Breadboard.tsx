@@ -1,6 +1,6 @@
 // Breadboard.tsx with hover and selection highlighting
 import React from 'react';
-import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, POWER_RAIL_HEIGHT, HOLE_SIZE, ROWS, COLS } from './config';
+import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, HOLE_SIZE, ROWS, COLS } from './config';
 import type { Hole } from './types';
 
 export type ICObstacle = { topRow: number; leftCol: number; rightCol: number; rows: number };

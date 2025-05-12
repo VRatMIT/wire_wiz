@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, POWER_RAIL_HEIGHT, PIN_SIZE, IC_HEIGHT, ROWS, COLS } from './config';
-import type { Board, IC } from './types';
+import { GRID_SIZE, CENTER_DIVIDE_HEIGHT, PIN_SIZE, IC_HEIGHT, ROWS, COLS } from './config';
+import type { Board } from './types';
 
 type ICProps = {
   x: number;
